@@ -15,8 +15,8 @@ import java.net.URLEncoder;
  * @Desc
  **/
 
-public class SmbTools {
-    private final static String TAG = "SmbTools";
+public class SmbUrlTools {
+    private final static String TAG = "SmbUrlTools";
 
     public static String convertToHttpUrl(String url, String ip, int port) {
         Log.i(TAG, " path:" + url);
@@ -32,7 +32,7 @@ public class SmbTools {
                 .append(ip)
                 .append(File.pathSeparator)
                 .append(port)
-                .append(SmbHelper.CONTENT_EXPORT_URI);
+                .append(HttpHelper.CONTENT_EXPORT_URI);
         builder.append(url);
         Log.i(TAG, " ---------> final file path: " + builder.toString());
 
@@ -43,7 +43,7 @@ public class SmbTools {
      * Turn from <b>"/smb=XXX"</b> to <b>"smb://XXX"</b>
      */
     public final static String cropStreamSmbURL(String url) {
-        Log.d(SmbHelper.TAG, " cropStreamSmbURL ----------> url = " + url);
+        Log.d(HttpHelper.TAG, " cropStreamSmbURL ----------> url = " + url);
         if (TextUtils.isEmpty(url)) {
             return null;
         }
@@ -52,13 +52,13 @@ public class SmbTools {
         } catch (UnsupportedEncodingException e1) {
             e1.printStackTrace();
         }
-        if (!url.startsWith(SmbHelper.CONTENT_EXPORT_URI)) {
+        if (!url.startsWith(HttpHelper.CONTENT_EXPORT_URI)) {
             return url;
         }
-        if (url.length() <= SmbHelper.CONTENT_EXPORT_URI.length()) {
+        if (url.length() <= HttpHelper.CONTENT_EXPORT_URI.length()) {
             return url;
         }
-        String filePaths = url.substring(SmbHelper.CONTENT_EXPORT_URI.length());
+        String filePaths = url.substring(HttpHelper.CONTENT_EXPORT_URI.length());
         int indexOf = filePaths.indexOf("&");
         if (indexOf != -1) {
             filePaths = filePaths.substring(0, indexOf);

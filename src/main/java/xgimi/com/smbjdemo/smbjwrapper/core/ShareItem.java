@@ -2,12 +2,14 @@ package xgimi.com.smbjdemo.smbjwrapper.core;
 
 import com.hierynomus.msdtyp.FileTime;
 
+import java.util.List;
+
 /**
  * This class provides an interface for a directory/file like filesystem structure.
  *
  * @author Simon Wächter
  */
-public interface SharedItem {
+public interface ShareItem {
 
     /**
      * Check if the shared item does exist.
@@ -66,34 +68,13 @@ public interface SharedItem {
     String getSmbPath();
 
     /**
-     * Get the parent shared item. If the shared item us already the root item, the root item will be returned.
-     *
-     * @return Parent shared item
-     */
-    SharedItem getParentPath();
-
-    /**
-     * Get the root shared item. If the shared item us already the root item, the root item will be returned.
-     *
-     * @return Root shared item
-     */
-    SharedItem getRootPath();
-
-    /**
-     * Check if the current shared item or its parent is the root shared item.
-     *
-     * @return Status of the check
-     */
-    boolean isRootPath();
-
-    /**
      * Rename the current item and return it as newly renamed item.
      *
      * @param newFileName    New file name
      * @param replaceIfExist Flag to replace an existing path of the same type (File/Directory)
      * @return Newly renamed shared item with the new path
      */
-    SharedItem renameTo(String newFileName, boolean replaceIfExist);
+    ShareItem renameTo(String newFileName, boolean replaceIfExist);
 
     /**
      * Get the creation time of the shared item.
@@ -125,4 +106,26 @@ public interface SharedItem {
      */
 
     FileTime getChangeTime();
+
+    /**
+     * Get child file list
+     *
+     * @return Child file list
+     */
+    List<ShareItem> getFileList();
+
+    /**
+     * Get parent file
+     *
+     * @return parent file
+     */
+    ShareItem getParentFile();
+
+    /**
+     * Get parent file path
+     * @return parent file path
+     */
+    String getParentPath();
+
+    boolean isRoot();
 }

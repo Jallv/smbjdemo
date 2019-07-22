@@ -1,15 +1,13 @@
-package xgimi.com.smbjdemo;
+package xgimi.com.smbjdemo.model;
 
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Bundle;
-import android.util.Log;
-import android.widget.Toast;
 
 
 import java.util.ArrayList;
+
+import xgimi.com.smbjdemo.model.AppManager;
 
 public class MediaOpenUtils {
 

@@ -1,4 +1,4 @@
-package xgimi.com.smbjdemo.smbjwrapper;
+package xgimi.com.smbjdemo.smbjwrapper.core;
 
 
 import com.hierynomus.msdtyp.AccessMask;
@@ -17,12 +17,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import xgimi.com.smbjdemo.smbjwrapper.core.AbstractSharedItem;
 import xgimi.com.smbjdemo.smbjwrapper.streams.SharedInputStream;
 import xgimi.com.smbjdemo.smbjwrapper.streams.SharedOutputStream;
 import xgimi.com.smbjdemo.smbjwrapper.utils.ShareUtils;
@@ -32,36 +31,27 @@ import xgimi.com.smbjdemo.smbjwrapper.utils.ShareUtils;
  * @date on 2019/7/8
  * @describe TODO
  */
-public class SharedFile extends AbstractSharedItem<SharedFile> {
+public class ShareFile extends AbstractShareItem<ShareFile> {
 
-    public static SharedFile build(String url) {
-        return build(url, new AuthenticationContext("","".toCharArray(),""));
+    public static ShareFile build(String url) {
+        return build(url, new AuthenticationContext("", "".toCharArray(), ""));
     }
 
-    public static SharedFile build(String url, AuthenticationContext authenticationContext){
+    public static ShareFile build(String url, AuthenticationContext authenticationContext) {
         SmbPath smbPath = SmbPath.parse(url);
-        SharedConnection sharedConnection = null;
+        ShareClient shareClient = null;
         try {
-            sharedConnection = new SharedConnection(smbPath.getHostname(), authenticationContext);
+            shareClient = new ShareClient(smbPath.getHostname(), authenticationContext);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return new SharedFile(sharedConnection,
-                (DiskShare) sharedConnection.getSession().connectShare(smbPath.getShareName()), smbPath.getPath());
+        return new ShareFile(shareClient,
+                (DiskShare) shareClient.getSession().connectShare(smbPath.getShareName()), smbPath.getPath());
     }
 
-    public SharedFile(SharedConnection sharedConnection, DiskShare diskShare,
-                      String pathName) {
-        super(sharedConnection, diskShare, pathName);
-    }
-
-
-    @Override
-    protected SharedFile createSharedNodeItem(String pathName) {
-        if (pathName == null || "".equals(pathName)) {
-            return null;
-        }
-        return new SharedFile(getSharedConnection(), getDiskShare(), pathName);
+    public ShareFile(ShareClient shareClient, DiskShare diskShare,
+                     String pathName) {
+        super(shareClient, diskShare, pathName);
     }
 
     /**
@@ -89,7 +79,7 @@ public class SharedFile extends AbstractSharedItem<SharedFile> {
      * @throws Buffer.BufferException Buffer related exception
      * @throws TransportException     Transport related exception
      */
-    public void copyFileViaServerSideCopy(SharedFile destinationSharedFile)
+    public void copyFileViaServerSideCopy(ShareFile destinationSharedFile)
             throws Buffer.BufferException, TransportException {
         try (
                 File sourceFile = getDiskShare().openFile(getPath(), EnumSet.of(AccessMask.GENERIC_READ), null,
@@ -101,19 +91,21 @@ public class SharedFile extends AbstractSharedItem<SharedFile> {
             sourceFile.remoteCopyTo(destinationFile);
         }
     }
-    public File openFile(){
-        return getDiskShare().openFile(getPath(), EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL,
+
+    public File openFile() {
+        Set<SMB2ShareAccess> s = new HashSet<>();
+        s.add(SMB2ShareAccess.ALL.iterator().next());
+        return getDiskShare().openFile(getPath(), EnumSet.of(AccessMask.GENERIC_READ), null, s,
                 SMB2CreateDisposition.FILE_OPEN, null);
     }
+
     /**
      * Get the input stream of the file that can be used to download the file.
      *
      * @return Input stream of the shared file
      */
     public InputStream getInputStream() {
-        File file = getDiskShare().openFile(getPath(), EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL,
-                SMB2CreateDisposition.FILE_OPEN, null);
-        return new SharedInputStream(file);
+        return new SharedInputStream(openFile());
     }
 
     /**
@@ -157,12 +149,12 @@ public class SharedFile extends AbstractSharedItem<SharedFile> {
      * {@inheritDoc}
      */
     @Override
-    public SharedFile renameTo(String newFileName, boolean replaceIfExist) {
+    public ShareFile renameTo(String newFileName, boolean replaceIfExist) {
         try (File file = getDiskShare().openFile(getPath(), EnumSet.of(AccessMask.GENERIC_ALL), null,
                 SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null)) {
-            String newFilePath = getParentPath().getPath() + PATH_SEPARATOR + newFileName;
+            String newFilePath = getParentPath() + PATH_SEPARATOR + newFileName;
             file.rename(newFilePath, replaceIfExist);
-            return new SharedFile(getSharedConnection(), getDiskShare(), newFilePath);
+            return new ShareFile(getShareClient(), getDiskShare(), newFilePath);
         }
     }
 
@@ -174,26 +166,34 @@ public class SharedFile extends AbstractSharedItem<SharedFile> {
      */
     @Override
     public boolean equals(Object object) {
-        if (object instanceof SharedFile) {
-            SharedFile sharedFile = (SharedFile) object;
+        if (object instanceof ShareFile) {
+            ShareFile sharedFile = (ShareFile) object;
             return getSmbPath().equals(sharedFile.getSmbPath());
         } else {
             return false;
         }
     }
 
-    public List<SharedFile> getFileList() {
-        List<SharedFile> fileList = new ArrayList<>();
+    @Override
+    public List<ShareItem> getFileList() {
+        List<ShareItem> fileList = new ArrayList<>();
         for (FileIdBothDirectoryInformation item : getDiskShare().list(getPath())) {
-            fileList.add(new SharedFile(getSharedConnection(), getDiskShare(),
+            fileList.add(new ShareFile(getShareClient(), getDiskShare(),
                     getPath() + (ShareUtils.isEmpty(getPath()) ? "" : PATH_SEPARATOR) + item.getFileName()));
         }
-        Collections.sort(fileList, new Comparator<SharedFile>() {
-            @Override
-            public int compare(SharedFile o1, SharedFile o2) {
-                return o1.getName().compareTo(o2.getName());
-            }
-        });
         return fileList;
+    }
+
+    @Override
+    public ShareItem getParentFile() {
+        if (ShareUtils.isEmpty(getPath())) {
+            return null;
+        }
+        int lastIndex = getPath().lastIndexOf(PATH_SEPARATOR);
+        if (lastIndex == -1) {
+            return new ShareDisk(getShareClient(), getDiskShare());
+        } else {
+            return new ShareFile(getShareClient(), getDiskShare(), getPath().substring(0, lastIndex));
+        }
     }
 }

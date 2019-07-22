@@ -12,10 +12,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.Socket;
 import java.util.Map;
 
-import xgimi.com.smbjdemo.smbjwrapper.SharedFile;
-import xgimi.com.smbjdemo.smbjwrapper.utils.ShareUtils;
+import xgimi.com.smbjdemo.smbjwrapper.core.ShareFile;
+import xgimi.com.smbjdemo.smbjwrapper.utils.log.KLog;
 
 /**
  * make sure <p/>
@@ -30,11 +31,11 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
     private static AuthenticationContext ntlAuth = null;
 
     private NanoStreamer() {
-        this(SmbHelper.DEFAULT_SERVER_PORT);
+        this(HttpHelper.DEFAULT_SERVER_PORT);
     }
 
     private NanoStreamer(int port) {
-        super(SmbHelper.DEFAULT_IP, port);
+        super(HttpHelper.DEFAULT_IP, port);
         this.serverPort = port;
     }
 
@@ -70,7 +71,7 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
 
     @Override
     public String getIp() {
-        return SmbHelper.DEFAULT_IP;
+        return HttpHelper.DEFAULT_IP;
     }
 
     @Override
@@ -79,12 +80,16 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
         String uri = session.getUri();
         return respond(headers, uri);
     }
+    @Override
+    public synchronized void unRegisterConnection(Socket socket) {
+        super.unRegisterConnection(socket);
+    }
 
     private Response respond(Map<String, String> headers, String uri) {
         Log.d(TAG, "respond uri=" + uri);
         String mimeTypeForFile = MimeTypeUtils.getMimeType(uri);
         Log.d(TAG, "------> mimeType = " + mimeTypeForFile);
-        String smbUri = SmbTools.cropStreamSmbURL(uri);
+        String smbUri = SmbUrlTools.cropStreamSmbURL(uri);
         String ipAddress = HttpBean.getmIpAddress();
         Log.d(TAG, "ipAddress = " + ipAddress);
         Log.d(TAG, "smbUri = " + smbUri);
@@ -98,23 +103,23 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
             if (index > 0) {
                 String username = name.substring(index + 1);
                 remoteSmbFileName = name.substring(0, index);
-                ntlAuth = new AuthenticationContext(username , password.toCharArray(),"");
+                ntlAuth = new AuthenticationContext(username, password.toCharArray(), "");
                 Log.d(TAG, "NtlmPasswordAuthentication = " + remoteSmbFileName + " " + username);
             } else {
                 remoteSmbFileName = null;
-                ntlAuth = new AuthenticationContext(name , password.toCharArray(),"");
+                ntlAuth = new AuthenticationContext(name, password.toCharArray(), "");
                 Log.d(TAG, "domain == null NtlmPasswordAuthentication = " + remoteSmbFileName + " " + name);
             }
         }
 
         Response response = null;
         try {
-            if (SmbTools.isSmbUrl(smbUri) && !TextUtils.isEmpty(mimeTypeForFile)) {
-                SharedFile smbFile;
+            if (SmbUrlTools.isSmbUrl(smbUri) && !TextUtils.isEmpty(mimeTypeForFile)) {
+                ShareFile smbFile;
                 if (TextUtils.isEmpty(name) && TextUtils.isEmpty(password)) {
-                    smbFile = SharedFile.build(smbUri);
+                    smbFile = ShareFile.build(smbUri);
                 } else {
-                    smbFile = SharedFile.build(smbUri, ntlAuth);
+                    smbFile = ShareFile.build(smbUri, ntlAuth);
                 }
                 InputStream copyStream = new BufferedInputStream(smbFile.getInputStream());
                 response = serveSmbFile(smbUri, headers, copyStream, smbFile, mimeTypeForFile);
@@ -142,11 +147,14 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
         return res;
     }
 
-    private Response serveSmbFile(String smbFileUrl, Map<String, String> header, InputStream is, SharedFile smbFile, String mime) {
+    private Response serveSmbFile(String smbFileUrl, Map<String, String> header, InputStream is, ShareFile smbFile,
+                                  String mime) {
         Response res;
         try {
             // Calculate etag
-            String eTag = Integer.toHexString((new StringBuilder(smbFile.getName()).append(smbFile.getLastWriteTime()).append(smbFile.getFileSize())).hashCode());
+            String eTag = Integer.toHexString((new StringBuilder(smbFile.getName()).append(smbFile.getLastWriteTime())
+                                                                                   .append(smbFile.getFileSize()))
+                    .hashCode());
             // Support (simple) skipping:
             long startFrom = 0;
             long endAt = -1;
@@ -161,13 +169,14 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
                             endAt = Long.parseLong(range.substring(minus + 1));
                         }
                     } catch (NumberFormatException ignored) {
+                        ignored.printStackTrace();
                     }
                 }
             }
 
             // Change return code and add Content-Range header when skipping is requested
             long fileLen = smbFile.getFileSize();
-            Log.i("SharedInputStream", "fileSize="+fileLen);
+            KLog.i("SharedInputStream", "fileSize=" + fileLen+",startFrom="+startFrom);
             if (range != null && startFrom >= 0) {
                 if (startFrom >= fileLen) {
                     res = createResponse(Response.Status.RANGE_NOT_SATISFIABLE, MIME_PLAINTEXT, "");
@@ -185,8 +194,7 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
             } else {
                 if (eTag.equals(header.get("if-none-match"))) {
                     res = createResponse(Response.Status.NOT_MODIFIED, mime, "");
-                }
-                else {
+                } else {
                     res = createNonBufferedResponse(Response.Status.OK, mime, is, fileLen);
                     res.addHeader("ETag", eTag);
                 }
@@ -206,9 +214,12 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
         }
 
         @Override
-        protected void sendContentLengthHeaderIfNotAlreadyPresent(PrintWriter pw, Map<String, String> header, int size) {
-            long pending = (getData() != null ? available : 0); // This is to support partial sends, see serveFile()
-            String string = header.get("Content-Range"); // Such as bytes 203437551-205074073/205074074
+        protected void sendContentLengthHeaderIfNotAlreadyPresent(PrintWriter pw, Map<String, String> header,
+                                                                  int size) {
+            // This is to support partial sends, see serveFile()
+            long pending = (getData() != null ? available : 0);
+            // Such as bytes 203437551-205074073/205074074
+            String string = header.get("Content-Range");
             if (string != null) {
                 if (string.startsWith("bytes ")) {
                     string = string.substring("bytes ".length());
@@ -222,18 +233,18 @@ public class NanoStreamer extends NanoHTTPD implements IStreamer {
 
         @Override
         protected void sendAsFixedLength(OutputStream outputStream, int pending) throws IOException {
-//            super.sendAsFixedLength(outputStream, pending);
+                       // super.sendAsFixedLength(outputStream, pending);
             sendAsFixedLength(outputStream);
         }
 
         private void sendAsFixedLength(OutputStream outputStream) throws IOException {
             long pending = (getData() != null ? available : 0);
             if (getRequestMethod() != Method.HEAD && getData() != null) {
-                int BUFFER_SIZE = 16 * 1024;
-                byte[] buff = new byte[BUFFER_SIZE];
+                byte[] buff = new byte[BUFFER_SIZE_1M];
                 while (pending > 0) {
-                    // Note the ugly cast to int to support > 2gb files. If pending < BUFFER_SIZE we can safely cast anyway.
-                    int read = getData().read(buff, 0, ((pending > BUFFER_SIZE) ? BUFFER_SIZE : (int) pending));
+                    // Note the ugly cast to int to support > 2gb files. If pending < BUFFER_SIZE_1M we can safely cast
+                    // anyway.
+                    int read = getData().read(buff, 0, ((pending > BUFFER_SIZE_1M) ? BUFFER_SIZE_1M : (int) pending));
                     if (read <= 0) {
                         break;
                     }

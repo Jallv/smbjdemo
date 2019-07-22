@@ -1,10 +1,11 @@
 
-package xgimi.com.smbjdemo;
+package xgimi.com.smbjdemo.model;
 
 
 import java.util.ArrayList;
 import java.util.List;
 
+import xgimi.com.smbjdemo.model.bean.FileCategory;
 import xgimi.com.smbjdemo.smbjwrapper.utils.ShareUtils;
 
 public class FileCategoryUtils {

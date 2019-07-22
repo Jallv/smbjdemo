@@ -1,6 +1,5 @@
 package xgimi.com.smbjdemo.smbjwrapper.streams;
 
-import android.util.Log;
 
 import com.hierynomus.smbj.ProgressListener;
 import com.hierynomus.smbj.share.File;
@@ -9,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import xgimi.com.smbjdemo.smbjwrapper.utils.MethodAverageTime;
+import xgimi.com.smbjdemo.smbjwrapper.utils.log.KLog;
 
 /**
  * This class represents a decorated input stream that respects the reference counting close mechanism of the file.
@@ -16,7 +16,7 @@ import xgimi.com.smbjdemo.smbjwrapper.utils.MethodAverageTime;
  * @author Simon Wächter
  */
 public class SharedInputStream extends InputStream {
-
+    private static final String TAG = "SharedInputStream";
     /**
      * File that provides the input stream.
      */
@@ -37,7 +37,7 @@ public class SharedInputStream extends InputStream {
         this.inputStream = file.getInputStream(new ProgressListener() {
             @Override
             public void onProgressChanged(long numBytes, long totalBytes) {
-                Log.i("SharedInputStream","onProgressChanged numBytes"+numBytes+",totalBytes="+totalBytes);
+                KLog.i("DirectTcpPacketReader", "onProgressChanged numBytes" + numBytes + ",totalBytes=" + totalBytes);
             }
         });
     }
@@ -50,17 +50,26 @@ public class SharedInputStream extends InputStream {
         return inputStream.read();
     }
 
-    private MethodAverageTime mMethodAverageTime = new MethodAverageTime("SharedInputStream");
+    private MethodAverageTime mMethodAverageTime = new MethodAverageTime(TAG);
     private long allSize;
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         allSize += len;
-        Log.i("SharedInputStream", "read off=" + off + ",len=" + len + ",allSize=" + allSize);
+        // KLog.i(TAG, "read off=" + off + ",len=" + len + ",allSize=" + allSize);
         mMethodAverageTime.start();
-        int result = super.read(b, off, len);
-        mMethodAverageTime.end();
+        int result = inputStream.read(b, off, len);
+        mMethodAverageTime.end(false);
+        double ave = mMethodAverageTime.average / 1000f;
+        ave = ave == 0 ? 1 : ave;
+        KLog.i(TAG, "speed=" + (int) ((len / 1024f) / ave) + "kb/s");
         return result;
+    }
+
+    @Override
+    public long skip(long n) throws IOException {
+        KLog.i(TAG, "skip to " + n);
+        return inputStream.skip(n);
     }
 
     /**
@@ -70,5 +79,6 @@ public class SharedInputStream extends InputStream {
     public void close() throws IOException {
         inputStream.close();
         file.close();
+        KLog.i(TAG, "close");
     }
 }

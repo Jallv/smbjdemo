@@ -5,16 +5,16 @@ package xgimi.com.smbjdemo.smbjwrapper.hpptd;
  */
 public interface IStreamer {
 
-    public void start();
+    void start();
 
-    public void stopStream();
+    void stopStream();
 
     /**
      * get post
      *
      * @return
      */
-    public int getPort();
+    int getPort();
 
     /**
      * For using in current device, you can just use "127.0.0.1"<p/>
@@ -22,5 +22,5 @@ public interface IStreamer {
      *
      * @return
      */
-    public String getIp();
+    String getIp();
 }

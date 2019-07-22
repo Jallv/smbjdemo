@@ -9,6 +9,7 @@ public class MethodAverageTime {
     public long average;
     public long allTime;
     public String tag;
+    public long time;
 
     public MethodAverageTime(String tag) {
         this.tag = tag;
@@ -18,12 +19,14 @@ public class MethodAverageTime {
         start = SystemClock.elapsedRealtime();
     }
 
-    public long end() {
+    public long end(boolean log) {
         long time = SystemClock.elapsedRealtime() - start;
         allTime += time;
         count++;
         average = allTime / count;
-        Log.i(tag, "allTime=" + allTime + ",count=" + count + ",average=" + average);
+        if(log) {
+            Log.i(tag, "allTime=" + allTime + ",count=" + count + ",average=" + average);
+        }
         return time;
     }
 

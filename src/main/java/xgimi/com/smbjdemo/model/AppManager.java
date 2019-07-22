@@ -1,4 +1,4 @@
-package xgimi.com.smbjdemo;
+package xgimi.com.smbjdemo.model;
 
 import android.app.ActivityManager;
 import android.content.ComponentName;
